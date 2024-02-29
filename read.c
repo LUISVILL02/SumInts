@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
 typedef struct HashTable {
     int numElements;       
@@ -11,13 +12,13 @@ typedef struct HashTable {
 
 HashTable *createHashTable(int size){
     HashTable *ht = (HashTable *)malloc(sizeof(HashTable));
-    ht->numElements = 100;
+    ht->numElements = size;
     ht->bucketsVacios = size;
     ht->keys = (int *)malloc(size * sizeof(int));
     ht->values = (int **)malloc(size * sizeof(int *));
     for (int i = 0; i < size; i++){
         ht->keys[i] = -1;
-        ht->values[i] = NULL;
+        ht->values[i] = 0;
     }
     return ht;
 }
@@ -40,7 +41,7 @@ int insertar(HashTable *hashTableP, int key, int value){
     int index = key % hashTableP->numElements;
     while (hashTableP->keys[index] != -1){
         if (hashTableP->keys[index] == key) {
-             *(hashTableP->values[index]) = value + 1;
+             *(hashTableP->values[index]) += 1;
             return 0;
         }
         index = (index + 1) % hashTableP->numElements;
@@ -52,13 +53,17 @@ int insertar(HashTable *hashTableP, int key, int value){
     return 0;
 }
 
-int printHashTable(HashTable *hashTableP){
-    for (int i = 0; i < hashTableP->numElements; i++){
-        if (hashTableP->keys[i] != -1){
-            printf("key %d: %d, value: %d\n", i, hashTableP->keys[i], *(hashTableP->values[i]));
+
+double varianza(HashTable *hashTable, int size, float media){
+    double varian = 0.0;
+    for(int i = 0; i < size; i++){
+        double values = 0;
+        if(hashTable->keys[i] != -1){
+            values = hashTable->keys[i] - media;
+            varian += values * values;
         }
     }
-    return 0;
+    return varian / (size - 1);
 }
 
 int main(int argc, char *argv[]){
@@ -66,7 +71,7 @@ int main(int argc, char *argv[]){
     HashTable *hashTable = NULL;
 
     struct timespec start, end;
-    double readFileTime, sumTime;
+    double readFileTime, sumTime, varian = 0, desviacionEsta = 0;
     int mostCommonValue, mostCommonValueCount = 0;
 
     FILE *file;
@@ -85,7 +90,6 @@ int main(int argc, char *argv[]){
     clock_gettime(CLOCK_REALTIME, &start);
 
     fscanf(file, "%d", &size);
-    printf("Size: %d\n", size);
 
     clock_gettime(CLOCK_REALTIME, &end);
     readFileTime = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/ 1e9;
@@ -99,6 +103,7 @@ int main(int argc, char *argv[]){
     }
 
     long int suma = 0;
+    float media = 0;
 
     clock_gettime(CLOCK_REALTIME, &start);
 
@@ -106,23 +111,29 @@ int main(int argc, char *argv[]){
         fscanf(file, "%d", &array[i]);
         suma += array[i];
         insertar(hashTable, array[i], 1);
+
     }
     clock_gettime(CLOCK_REALTIME, &end);
-    sumTime = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/ 1e9;
+    int tamanoReal = hashTable->numElements - hashTable->bucketsVacios;
 
-    printHashTable(hashTable);
+    media = (float)suma / tamanoReal;
+    varian = varianza(hashTable, tamanoReal, media);
+    desviacionEsta = sqrt(varian);
+    sumTime = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/ 1e9;
     
     mostCommonValue = -9999;
-    for(int i = 0; i < hashTable->numElements; i++){
-        printf("key %d: %d\n", i, hashTable->keys[i]);
-        if(*(hashTable->values[i]) > mostCommonValue){
+    for(int i = 0; i < tamanoReal; i++){
+        if (hashTable->keys[i] != -1){
+            if(*(hashTable->values[i]) > mostCommonValueCount){
+            mostCommonValueCount = *(hashTable->values[i]);
             mostCommonValue = hashTable->keys[i];
+            }
         }
+        
     }
-    //printf("hola elements: %d\n", hashTable->numElements);
     destruirHash(&hashTable);
     fclose(file);
     free(array);
 
-    printf("Read file time: %f\n Sum time: %f\n Total sum: %ld\n The mst common value is: %d\n", readFileTime, sumTime, suma, mostCommonValue);
+    printf("Read file time: %f\n Sum time: %f\n Total sum: %ld\n The mst common value is: (%d, %d)\n Media %f\n Varianza: %f\n Desviacion Estandar: %f\n", readFileTime, sumTime, suma, mostCommonValue, mostCommonValueCount,media, varian, desviacionEsta);
 }
